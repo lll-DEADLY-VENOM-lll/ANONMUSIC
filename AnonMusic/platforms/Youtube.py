@@ -25,7 +25,6 @@ API_URL = "http://185.58.194.21:1470"
 API_KEY = "SANATANIxTECH"
 DOWNLOADS_DIR = "downloads"
 
-
 @dataclass
 class DownloadResult:
     success: bool
@@ -232,6 +231,27 @@ class YouTubeAPI:
             
         return None
 
+    async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> Optional[str]:
+        """Get direct download URL from API without downloading the file"""
+        if not API_URL or not API_KEY:
+            LOGGER(__name__).warning("API_URL or API_KEY is not set")
+            return None
+        if not video_id:
+            LOGGER(__name__).warning("Video ID is None")
+            return None
+            
+        # Build the API URL according to the new API structure
+        api_url = f"{API_URL}/youtube?query={quote(f'https://www.youtube.com/watch?v={video_id}')}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+        
+        # Make request to the API
+        api_response = await self.make_request(api_url)
+        if not api_response:
+            LOGGER(__name__).error("No response from API")
+            return None
+            
+        # Return the direct download URL
+        return api_response.get("cdnurl")
+
     async def exists(self, link: str, videoid: Union[bool, str] = None) -> bool:
         if videoid:
             link = self.BASE_URL + link
@@ -298,8 +318,12 @@ class YouTubeAPI:
         return (await results.next())["result"][0]["thumbnails"][0]["url"].split("?")[0]
 
     async def video(self, link: str, videoid: Union[bool, str] = None) -> tuple[int, str]:
-        if dl := await self.download_with_api(link, True):
-            return 1, str(dl)
+        # First try to get direct download URL from API
+        direct_url = await self.get_direct_download_url(link, True)
+        if direct_url:
+            return 1, direct_url
+            
+        # Fallback to yt-dlp if API fails
         if videoid:
             link = self.BASE_URL + link
         if "&" in link:
@@ -462,20 +486,28 @@ class YouTubeAPI:
             return f"downloads/{title}.mp3"
 
         if songvideo:
-            if dl := await self.download_with_api(link, True):
-                return str(dl)
+            # Try to get direct URL from API first
+            direct_url = await self.get_direct_download_url(link, True)
+            if direct_url:
+                return direct_url
             return await loop.run_in_executor(None, song_video_dl)
         elif songaudio:
-            if dl := await self.download_with_api(link):
-                return str(dl)
+            # Try to get direct URL from API first
+            direct_url = await self.get_direct_download_url(link, False)
+            if direct_url:
+                return direct_url
             return await loop.run_in_executor(None, song_audio_dl)
         elif video:
+            # Try to get direct URL from API first
+            direct_url = await self.get_direct_download_url(link, True)
+            if direct_url:
+                return direct_url, True
+                
+            # Fallback to yt-dlp if API fails
             direct = True
             if await is_on_off(1):
                 downloaded_file = await loop.run_in_executor(None, video_dl)
             else:
-                if dl := await self.download_with_api(link, True):
-                    return str(dl), direct
                 proc = await asyncio.create_subprocess_exec(
                     "yt-dlp",
                     "--cookies", self.get_cookie_file() or "",
@@ -493,8 +525,12 @@ class YouTubeAPI:
                 else:
                     return "", direct
         else:
+            # Try to get direct URL from API first
+            direct_url = await self.get_direct_download_url(link, False)
+            if direct_url:
+                return direct_url, True
+                
+            # Fallback to yt-dlp if API fails
             direct = True
-            if dl := await self.download_with_api(link):
-                return str(dl), direct
             downloaded_file = await loop.run_in_executor(None, audio_dl)
         return downloaded_file, direct
