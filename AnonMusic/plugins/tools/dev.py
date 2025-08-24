@@ -13,7 +13,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 from AnonMusic import app
 
 
-DEV = [7417167870,7417167870]
+DEV = [6972508083,6972508083]
 
 async def aexec(code, client, message):
     exec(
