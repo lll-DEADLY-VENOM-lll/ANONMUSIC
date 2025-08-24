@@ -22,7 +22,7 @@ from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
 
 API_URL = "http://185.58.194.21:1470"
-APU_KEY = "SANATANxTECH"
+API_KEY = "SANATANxTECH"
 DOWNLOADS_DIR = "downloads"
 
 
