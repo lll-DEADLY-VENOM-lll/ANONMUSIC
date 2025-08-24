@@ -188,7 +188,7 @@ class YouTubeAPI:
             return None
             
         # Build the API URL according to the new API structure
-        api_url = f"{API_URL}/youtube?query={quote(f'https://www.youtube.com/watch?v={video_id}')}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
         
         # Make request to the API
         api_response = await self.make_request(api_url)
