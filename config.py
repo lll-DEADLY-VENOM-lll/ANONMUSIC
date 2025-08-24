@@ -18,8 +18,8 @@ BOT_TOKEN = getenv("BOT_TOKEN")
 MONGO_DB_URI = getenv("MONGO_DB_URI", None)
 
 # YouTube streaming proxy and key (used in API backend)
-YTPROXY_URL = getenv("YTPROXY_URL")
-YT_API_KEY = getenv("YT_API_KEY")
+YTPROXY_URL = getenv("YTPROXY_URL", "https://xyz.spotifytech.shop")
+YT_API_KEY = getenv("YT_API_KEY", "8de65623506d05c51fcf90ee3e97102f")
 
 WEBSITE = getenv("WEBSITE", "https://xyz.spotifytech.shop")
 
