@@ -20,7 +20,6 @@ from AnonMusic import app
 from AnonMusic.logging import LOGGER
 from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
-from config import API_URL, API_KEY, 
 
 API_URL = "http://185.58.194.21:1470"
 APU_KEY = "SANATANxTECH"
