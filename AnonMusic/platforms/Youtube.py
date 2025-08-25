@@ -22,7 +22,7 @@ from AnonMusic.logging import LOGGER
 from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
 
-API_URL = "http://185.58.194.21:1470"
+API_URL = "https://bot.spotifytech.shop"
 API_KEY = "SANATANIxTECH"
 DOWNLOADS_DIR = "downloads"
 
