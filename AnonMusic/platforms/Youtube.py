@@ -16,6 +16,7 @@ from pyrogram import errors
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from youtubesearchpython.__future__ import VideosSearch
+
 from AnonMusic import app
 from AnonMusic.logging import LOGGER
 from AnonMusic.utils.database import is_on_off
@@ -178,7 +179,7 @@ class YouTubeAPI:
             return f"Request failed for {url}: {repr(e)}"
         return f"Unexpected error for {url}: {repr(e)}"
 
-    async def download_with_api(self, video_id: str, is_video: bool = False, playlist_index: int = 0) -> Optional[Path]:
+    async def download_with_api(self, video_id: str, is_video: bool = False) -> Optional[Path]:
         if not API_URL or not API_KEY:
             LOGGER(__name__).warning("API_URL or API_KEY is not set")
             return None
@@ -186,8 +187,8 @@ class YouTubeAPI:
             LOGGER(__name__).warning("Video ID is None")
             return None
             
-        # Build the API URL according to the new API structure with playlist support
-        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}&playlist_index={playlist_index}"
+        # Build the API URL according to the new API structure
+        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
         
         # Make request to the API
         api_response = await self.make_request(api_url)
@@ -231,7 +232,7 @@ class YouTubeAPI:
             
         return None
 
-    async def get_direct_download_url(self, video_id: str, is_video: bool = False, playlist_index: int = 0) -> Optional[str]:
+    async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> Optional[str]:
         """Get direct download URL from API without downloading the file"""
         if not API_URL or not API_KEY:
             LOGGER(__name__).warning("API_URL or API_KEY is not set")
@@ -240,8 +241,8 @@ class YouTubeAPI:
             LOGGER(__name__).warning("Video ID is None")
             return None
             
-        # Build the API URL according to the new API structure with playlist support
-        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}&playlist_index={playlist_index}"
+        # Build the API URL according to the new API structure
+        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
         
         # Make request to the API
         api_response = await self.make_request(api_url)
@@ -317,9 +318,9 @@ class YouTubeAPI:
         results = VideosSearch(link, limit=1)
         return (await results.next())["result"][0]["thumbnails"][0]["url"].split("?")[0]
 
-    async def video(self, link: str, videoid: Union[bool, str] = None, playlist_index: int = 0) -> tuple[int, str]:
+    async def video(self, link: str, videoid: Union[bool, str] = None) -> tuple[int, str]:
         # First try to get direct download URL from API
-        direct_url = await self.get_direct_download_url(link, True, playlist_index)
+        direct_url = await self.get_direct_download_url(link, True)
         if direct_url:
             return 1, direct_url
             
@@ -403,7 +404,7 @@ class YouTubeAPI:
         result = (await results.next())["result"][query_type]
         return result["title"], result["duration"], result["thumbnails"][0]["url"].split("?")[0], result["id"]
 
-    async def download(self, link: str, mystic, video: Union[bool, str] = None, videoid: Union[bool, str] = None, songaudio: Union[bool, str] = None, songvideo: Union[bool, str] = None, format_id: Union[bool, str] = None, title: Union[bool, str] = None, playlist_index: int = 0) -> Union[str, tuple[str, bool]]:
+    async def download(self, link: str, mystic, video: Union[bool, str] = None, videoid: Union[bool, str] = None, songaudio: Union[bool, str] = None, songvideo: Union[bool, str] = None, format_id: Union[bool, str] = None, title: Union[bool, str] = None) -> Union[str, tuple[str, bool]]:
         if videoid:
             link = self.BASE_URL + link
         loop = asyncio.get_running_loop()
@@ -418,7 +419,7 @@ class YouTubeAPI:
                 "cookiefile": self.get_cookie_file(),
                 "no_warnings": True,
             }
-            with yt_dlp.YoutubeDL(ytdl_optssx) as x:
+            with yt_dlp.YoutubeDL(ydl_optssx) as x:
                 info = x.extract_info(link, download=False)
                 xyz = os.path.join("downloads", f"{info['id']}.{info['ext']}")
                 if os.path.exists(xyz):
@@ -436,7 +437,7 @@ class YouTubeAPI:
                 "quiet": True,
                 "no_warnings": True,
             }
-            with yt_dlp.YoutubeDL(ytdl_optssx) as x:
+            with yt_dlp.YoutubeDL(ydl_optssx) as x:
                 info = x.extract_info(link, download=False)
                 xyz = os.path.join("downloads", f"{info['id']}.{info['ext']}")
                 if os.path.exists(xyz):
@@ -458,7 +459,7 @@ class YouTubeAPI:
                 "prefer_ffmpeg": True,
                 "merge_output_format": "mp4",
             }
-            with yt_dlp.YoutubeDL(ytdl_optssx) as x:
+            with yt_dlp.YoutubeDL(ydl_optssx) as x:
                 x.download([link])
             return f"downloads/{title}.mp4"
 
@@ -481,25 +482,25 @@ class YouTubeAPI:
                     }
                 ],
             }
-            with yt_dlp.YoutubeDL(ytdl_optssx) as x:
+            with yt_dlp.YoutubeDL(ydl_optssx) as x:
                 x.download([link])
             return f"downloads/{title}.mp3"
 
         if songvideo:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, True, playlist_index)
+            direct_url = await self.get_direct_download_url(link, True)
             if direct_url:
                 return direct_url
             return await loop.run_in_executor(None, song_video_dl)
         elif songaudio:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, False, playlist_index)
+            direct_url = await self.get_direct_download_url(link, False)
             if direct_url:
                 return direct_url
             return await loop.run_in_executor(None, song_audio_dl)
         elif video:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, True, playlist_index)
+            direct_url = await self.get_direct_download_url(link, True)
             if direct_url:
                 return direct_url, True
                 
@@ -526,7 +527,7 @@ class YouTubeAPI:
                     return "", direct
         else:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, False, playlist_index)
+            direct_url = await self.get_direct_download_url(link, False)
             if direct_url:
                 return direct_url, True
                 
