@@ -21,10 +21,7 @@ from AnonMusic import app
 from AnonMusic.logging import LOGGER
 from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
-
-API_URL = "https://bot.spotifytech.shop"
-API_KEY = "SANATANIxTECH"
-DOWNLOADS_DIR = "downloads"
+from config import API_URL, API_KEY, DOWNLOADS_DIR
 
 @dataclass
 class DownloadResult:
