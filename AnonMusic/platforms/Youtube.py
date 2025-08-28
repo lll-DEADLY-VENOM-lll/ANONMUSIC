@@ -23,9 +23,6 @@ from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
 from config import API_URL, API_KEY, DOWNLOADS_DIR
 
-# Add import for subprocess for audio conversion
-import subprocess
-
 @dataclass
 class DownloadResult:
     success: bool
@@ -179,144 +176,151 @@ class YouTubeAPI:
             return f"Request failed for {url}: {repr(e)}"
         return f"Unexpected error for {url}: {repr(e)}"
 
-    async def parse_tg_link(self, url: str) -> Optional[Path]:
-        """Parse Telegram channel URL and download the file"""
-        try:
-            # Extract chat ID and message ID from Telegram URL
-            match = re.match(r"https:\/\/t\.me\/([^\/]+)\/(\d+)", url)
-            if not match:
-                LOGGER(__name__).error(f"Invalid Telegram URL format: {url}")
-                return None
-                
-            chat_username, message_id = match.groups()
-            msg = await app.get_messages(chat_username, int(message_id))
-            
-            if not msg:
-                LOGGER(__name__).error(f"Message not found: {url}")
-                return None
-                
-            if msg.document or msg.video or msg.audio:
-                # Download the file
-                path = await msg.download()
-                return Path(path) if path else None
-            else:
-                LOGGER(__name__).error(f"No media found in message: {url}")
-                return None
-                
-        except Exception as e:
-            LOGGER(__name__).error(f"Error parsing Telegram URL {url}: {e}")
-            return None
-
-    async def convert_mp4_to_mp3(self, mp4_path: Path) -> Optional[Path]:
-        """Convert MP4 file to MP3 for audio playback"""
-        try:
-            if not mp4_path.exists():
-                LOGGER(__name__).error(f"MP4 file not found: {mp4_path}")
-                return None
-                
-            mp3_path = mp4_path.with_suffix('.mp3')
-            
-            # Use ffmpeg to convert MP4 to MP3
-            cmd = [
-                'ffmpeg', '-i', str(mp4_path),
-                '-vn', '-acodec', 'libmp3lame', '-ab', '192k',
-                '-y', str(mp3_path)
-            ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                # Remove the original MP4 file
-                os.remove(mp4_path)
-                LOGGER(__name__).info(f"Converted {mp4_path} to {mp3_path}")
-                return mp3_path
-            else:
-                LOGGER(__name__).error(f"FFmpeg conversion failed: {stderr.decode()}")
-                return mp4_path  # Return original file as fallback
-                
-        except Exception as e:
-            LOGGER(__name__).error(f"Error converting MP4 to MP3: {e}")
-            return mp4_path  # Return original file as fallback
-
     async def download_with_api(self, video_id: str, is_video: bool = False) -> Optional[Path]:
-        if not API_URL or not API_KEY:
-            LOGGER(__name__).warning("API_URL or API_KEY is not set")
-            return None
-        if not video_id:
-            LOGGER(__name__).warning("Video ID is None")
-            return None
-            
-        # Build the API URL according to the new API structure
-        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+    if not API_URL or not API_KEY:
+        LOGGER(__name__).warning("API_URL or API_KEY is not set")
+        return None
+    if not video_id:
+        LOGGER(__name__).warning("Video ID is None")
+        return None
         
-        # Make request to the API
-        api_response = await self.make_request(api_url)
-        if not api_response:
-            LOGGER(__name__).error("No response from API")
-            return None
-            
-        # Extract the download URL from the API response
-        cdn_url = api_response.get("cdnurl")
-        if not cdn_url:
-            LOGGER(__name__).error("API response is missing cdnurl")
-            return None
-            
-        # Handle different types of responses
-        # Type 1: Direct MP3 URL (good to go)
-        if cdn_url.endswith('.mp3'):
+    # Build the API URL
+    api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+    
+    # Make request to the API
+    api_response = await self.make_request(api_url)
+    if not api_response:
+        LOGGER(__name__).error("No response from API")
+        return None
+        
+    # Extract the download URL from the API response
+    cdn_url = api_response.get("cdnurl")
+    if not cdn_url:
+        LOGGER(__name__).error("API response is missing cdnurl")
+        return None
+    
+    stream_type = api_response.get("stream_type", "")
+    LOGGER(__name__).info(f"API Response - Stream Type: {stream_type}, URL: {cdn_url}")
+    
+    # Handle different types of CDN URLs
+    try:
+        # Type 1: Direct HTTP URLs (audio.mp3)
+        if cdn_url.startswith(('http://', 'https://')) and not any(x in cdn_url for x in ['t.me', 'telegram.org']):
             dl_result = await self.download_file(cdn_url)
             return dl_result.file_path if dl_result.success else None
-            
-        # Type 2: Telegram file URL (needs special handling)
+        
+        # Type 2: Telegram Bot API URLs
         elif "telegram.org" in cdn_url:
             dl_result = await self.download_file(cdn_url)
-            if dl_result.success:
-                # Convert MP4 to MP3 if it's an audio stream
-                if not is_video and dl_result.file_path and dl_result.file_path.suffix.lower() == '.mp4':
+            if dl_result.success and dl_result.file_path:
+                # If we need audio but got video, convert MP4 to MP3
+                if stream_type == "audio" and dl_result.file_path.suffix.lower() == '.mp4':
                     return await self.convert_mp4_to_mp3(dl_result.file_path)
                 return dl_result.file_path
             return None
-            
-        # Type 3: Telegram channel URL (needs parsing)
+        
+        # Type 3: Telegram Channel URLs (t.me)
         elif "t.me" in cdn_url:
+            # Parse Telegram link and download
             file_path = await self.parse_tg_link(cdn_url)
-            if file_path and not is_video and file_path.suffix.lower() == '.mp4':
+            if file_path and stream_type == "audio" and file_path.suffix.lower() == '.mp4':
+                # Convert MP4 to MP3 for audio streams
                 return await self.convert_mp4_to_mp3(file_path)
             return file_path
             
-        # Unknown type, try direct download
-        else:
-            dl_result = await self.download_file(cdn_url)
-            if dl_result.success and not is_video and dl_result.file_path and dl_result.file_path.suffix.lower() == '.mp4':
-                return await self.convert_mp4_to_mp3(dl_result.file_path)
-            return dl_result.file_path if dl_result.success else None
+    except Exception as e:
+        LOGGER(__name__).error(f"Error handling CDN URL {cdn_url}: {e}")
+        return None
+    
+    return None
 
-    async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> Optional[str]:
-        """Get direct download URL from API without downloading the file"""
-        if not API_URL or not API_KEY:
-            LOGGER(__name__).warning("API_URL or API_KEY is not set")
-            return None
-        if not video_id:
-            LOGGER(__name__).warning("Video ID is None")
+    async def parse_tg_link(self, tg_url: str) -> Optional[Path]:
+    """Parse Telegram channel links and download files"""
+    try:
+        # Parse t.me links - format: https://t.me/channel_username/message_id
+        match = re.match(r"https?://t\.me/([^/]+)/(\d+)", tg_url)
+        if not match:
+            LOGGER(__name__).error(f"Invalid Telegram URL format: {tg_url}")
             return None
             
-        # Build the API URL according to the new API structure
-        api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+        chat_username, message_id = match.groups()
+        msg = await app.get_messages(chat_username, int(message_id))
         
-        # Make request to the API
-        api_response = await self.make_request(api_url)
-        if not api_response:
-            LOGGER(__name__).error("No response from API")
+        if not msg:
+            LOGGER(__name__).error(f"Message not found: {tg_url}")
             return None
             
-        # Return the direct download URL
-        return api_response.get("cdnurl")
+        # Download the file
+        if msg.document or msg.video or msg.audio:
+            download_path = await msg.download()
+            return Path(download_path) if download_path else None
+        else:
+            LOGGER(__name__).error(f"No downloadable content in message: {tg_url}")
+            return None
+            
+    except Exception as e:
+        LOGGER(__name__).error(f"Error parsing Telegram link {tg_url}: {e}")
+        return None
+
+async def convert_mp4_to_mp3(self, mp4_path: Path) -> Optional[Path]:
+    """Convert MP4 file to MP3 using FFmpeg"""
+    try:
+        if not mp4_path.exists():
+            LOGGER(__name__).error(f"MP4 file not found: {mp4_path}")
+            return None
+            
+        mp3_path = mp4_path.with_suffix('.mp3')
+        
+        # Use FFmpeg to convert
+        proc = await asyncio.create_subprocess_exec(
+            'ffmpeg',
+            '-i', str(mp4_path),
+            '-vn',  # No video
+            '-acodec', 'libmp3lame',
+            '-ab', '192k',  # Bitrate
+            '-y',  # Overwrite
+            str(mp3_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        await proc.wait()
+        
+        if mp3_path.exists():
+            # Remove original MP4 file
+            try:
+                mp4_path.unlink()
+            except:
+                pass
+            return mp3_path
+        else:
+            LOGGER(__name__).error(f"MP3 conversion failed for: {mp4_path}")
+            return mp4_path  # Return original as fallback
+            
+    except Exception as e:
+        LOGGER(__name__).error(f"Error converting MP4 to MP3: {e}")
+        return mp4_path  # Return original as fallback
+
+async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> Optional[str]:
+    """Get direct download URL from API without downloading the file"""
+    if not API_URL or not API_KEY:
+        LOGGER(__name__).warning("API_URL or API_KEY is not set")
+        return None
+    if not video_id:
+        LOGGER(__name__).warning("Video ID is None")
+        return None
+        
+    # Build the API URL
+    api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
+    
+    # Make request to the API
+    api_response = await self.make_request(api_url)
+    if not api_response:
+        LOGGER(__name__).error("No response from API")
+        return None
+        
+    # Return the direct download URL
+    return api_response.get("cdnurl")
 
     async def exists(self, link: str, videoid: Union[bool, str] = None) -> bool:
         if videoid:
