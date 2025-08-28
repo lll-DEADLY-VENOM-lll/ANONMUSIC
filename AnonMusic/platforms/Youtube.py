@@ -177,7 +177,7 @@ class YouTubeAPI:
         return f"Unexpected error for {url}: {repr(e)}"
 
     async def download_with_api(self, video_id: str, is_video: bool = False) -> Optional[Path]:
-    if not API_URL or not API_KEY:
+        if not API_URL or not API_KEY:
         LOGGER(__name__).warning("API_URL or API_KEY is not set")
         return None
     if not video_id:
