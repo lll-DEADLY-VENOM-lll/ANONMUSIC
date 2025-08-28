@@ -25,8 +25,8 @@ def private_panel(_):
             InlineKeyboardButton(text=_["S_B_5"], url=config.SUPPORT_CHANNEL),
         ],
         [
-            InlineKeyboardButton(text=_["S_B_10"], web_app=WebAppInfo(url=config.BOT_DOCS)),
-            InlineKeyboardButton(text=_["S_B_11"], web_app=WebAppInfo(url=config.MINI_APP)),
+            InlineKeyboardButton(text="ʙᴏᴛ ᴅᴏᴄs", web_app=WebAppInfo(url=config.BOT_DOCS)),
+            InlineKeyboardButton(text="ᴍɪɴɪ ᴀᴘᴘ", web_app=WebAppInfo(url=config.MINI_APP)),
         ],
         [
             InlineKeyboardButton(text=_["S_B_4"], callback_data="settings_back_helper"),
