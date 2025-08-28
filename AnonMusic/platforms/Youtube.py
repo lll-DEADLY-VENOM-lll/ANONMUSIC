@@ -178,12 +178,13 @@ class YouTubeAPI:
 
     async def download_with_api(self, video_id: str, is_video: bool = False) -> Optional[Path]:
         if not API_URL or not API_KEY:
-        LOGGER(__name__).warning("API_URL or API_KEY is not set")
-        return None
-    if not video_id:
-        LOGGER(__name__).warning("Video ID is None")
-        return None
-        
+            LOGGER(__name__).warning("API_URL or API_KEY is not set")
+            return None
+            if not video_id:
+                LOGGER(__name__).warning("Video ID is None")
+                return None
+
+    
     # Build the API URL
     api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
     
