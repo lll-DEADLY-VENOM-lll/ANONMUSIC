@@ -22,7 +22,8 @@ API_URL = getenv("API_URL", "https://bot.spotifytech.shop")
 API_KEY = getenv("API_KEY", "SANATANIxTECH")
 DOWNLOADS_DIR = getenv("DOWNLOADS_DIR", "downloads")
 
-WEBSITE = getenv("WEBSITE", "https://xyz.spotifytech.shop")
+BOT_DOCS =  getenv("BOT_DOCS", "https://radha-music.vercel.app")
+MINI_APP =  getenv("MINI_APP", "https://heroku-club.vercel.app")
 
 COOKIES_URL = getenv("COOKIES_URL")
 
