@@ -10,7 +10,7 @@ import yt_dlp
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
-from urllib.parse import unquote, quote
+from urllib.parse import unquote, quote, urlparse
 
 from pyrogram import errors
 from pyrogram.enums import MessageEntityType
@@ -28,6 +28,24 @@ class DownloadResult:
     success: bool
     file_path: Optional[Path] = None
     error: Optional[str] = None
+
+# Add parse_tg_link function here
+def parse_tg_link(link: str):
+    """Parse Telegram link and return chat username and message ID"""
+    try:
+        parsed = urlparse(link)
+        path = parsed.path.strip('/')
+        parts = path.split('/')
+        
+        if len(parts) >= 2:
+            # Check if it's from ApixFile channel
+            if parts[0] == "ApixFile" and parts[1].isdigit():
+                return str(parts[0]), int(parts[1])
+        
+        return None, None
+    except Exception as e:
+        LOGGER(__name__).error(f"Error parsing Telegram link: {e}")
+        return None, None
 
 class YouTubeAPI:
     DEFAULT_TIMEOUT = 120
@@ -199,10 +217,24 @@ class YouTubeAPI:
             LOGGER(__name__).error("API response is missing cdnurl")
             return None
             
-        # Check if it's a Telegram URL (we need to handle differently)
-        if "t.me" in cdn_url or "telegram.org" in cdn_url:
+        # Check if it's a Telegram URL from ApixFile
+        if cdn_url and "t.me/ApixFile/" in cdn_url:
             try:
-                # Handle Telegram file downloads
+                # Use our parse_tg_link function for ApixFile links
+                chat_username, message_id = parse_tg_link(cdn_url)
+                
+                if chat_username and message_id:
+                    msg = await app.get_messages(chat_username, message_id)
+                    if msg and (msg.document or msg.video or msg.audio):
+                        path = await msg.download()
+                        return Path(path) if path else None
+            except Exception as e:
+                LOGGER(__name__).error(f"Error downloading from ApixFile Telegram: {e}")
+                return None
+        # For other Telegram URLs or direct URLs
+        elif "t.me" in cdn_url or "telegram.org" in cdn_url:
+            try:
+                # Handle other Telegram file downloads
                 if "t.me" in cdn_url:
                     # Extract chat ID and message ID from Telegram URL
                     match = re.match(r"https:\/\/t\.me\/([^\/]+)\/(\d+)", cdn_url)
@@ -402,6 +434,19 @@ class YouTubeAPI:
         return result["title"], result["duration"], result["thumbnails"][0]["url"].split("?")[0], result["id"]
 
     async def download(self, link: str, mystic, video: Union[bool, str] = None, videoid: Union[bool, str] = None, songaudio: Union[bool, str] = None, songvideo: Union[bool, str] = None, format_id: Union[bool, str] = None, title: Union[bool, str] = None) -> Union[str, tuple[str, bool]]:
+        # First check if it's a direct ApixFile Telegram link
+        if link and "t.me/ApixFile/" in link:
+            try:
+                chat_username, message_id = parse_tg_link(link)
+                if chat_username and message_id:
+                    msg = await app.get_messages(chat_username, message_id)
+                    if msg and (msg.document or msg.video or msg.audio):
+                        path = await msg.download()
+                        return path, True
+            except Exception as e:
+                LOGGER(__name__).error(f"Error downloading from ApixFile link: {e}")
+                # Fall through to normal processing if Telegram download fails
+        
         if videoid:
             link = self.BASE_URL + link
         loop = asyncio.get_running_loop()
