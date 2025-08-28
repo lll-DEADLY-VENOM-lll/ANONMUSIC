@@ -175,7 +175,7 @@ class YouTubeAPI:
             LOGGER(__name__).error(error_msg)
             return DownloadResult(success=False, error=error_msg)
 
-    async def make_request(self, url: str, max_retries: int = MAX_RETRIES, backoff_factor: float = BACKOF_FACTOR, **kwargs: Any) -> Optional[dict[str, Any]]:
+    async def make_request(self, url: str, max_retries: int = MAX_RETRIES, backoff_factor: float = BACKOFF_FACTOR, **kwargs: Any) -> Optional[dict[str, Any]]:
         if not url:
             LOGGER(__name__).warning("Empty URL provided")
             return None
