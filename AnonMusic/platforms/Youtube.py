@@ -47,6 +47,50 @@ def parse_tg_link(link: str):
         LOGGER(__name__).error(f"Error parsing Telegram link: {e}")
         return None, None
 
+async def convert_mp4_to_mp3(input_path: str) -> Optional[str]:
+    """Convert MP4 file to MP3 format using ffmpeg"""
+    try:
+        if not input_path or not os.path.exists(input_path):
+            LOGGER(__name__).error(f"Input file does not exist: {input_path}")
+            return None
+            
+        output_path = input_path.rsplit('.', 1)[0] + '.mp3'
+        
+        # Check if already converted
+        if os.path.exists(output_path):
+            return output_path
+            
+        # Use ffmpeg to convert MP4 to MP3
+        cmd = [
+            'ffmpeg', '-i', input_path,
+            '-vn', '-acodec', 'libmp3lame', '-ab', '192k',
+            '-y', output_path
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode == 0:
+            LOGGER(__name__).info(f"Successfully converted {input_path} to {output_path}")
+            # Remove the original MP4 file if conversion was successful
+            try:
+                os.remove(input_path)
+            except:
+                pass
+            return output_path
+        else:
+            LOGGER(__name__).error(f"FFmpeg conversion failed: {stderr.decode()}")
+            return None
+            
+    except Exception as e:
+        LOGGER(__name__).error(f"Error converting MP4 to MP3: {e}")
+        return None
+
 class YouTubeAPI:
     DEFAULT_TIMEOUT = 120
     DEFAULT_DOWNLOAD_TIMEOUT = 120
@@ -131,7 +175,7 @@ class YouTubeAPI:
             LOGGER(__name__).error(error_msg)
             return DownloadResult(success=False, error=error_msg)
 
-    async def make_request(self, url: str, max_retries: int = MAX_RETRIES, backoff_factor: float = BACKOFF_FACTOR, **kwargs: Any) -> Optional[dict[str, Any]]:
+    async def make_request(self, url: str, max_retries: int = MAX_RETRIES, backoff_factor: float = BACKOF_FACTOR, **kwargs: Any) -> Optional[dict[str, Any]]:
         if not url:
             LOGGER(__name__).warning("Empty URL provided")
             return None
@@ -227,6 +271,11 @@ class YouTubeAPI:
                     msg = await app.get_messages(chat_username, message_id)
                     if msg and (msg.document or msg.video or msg.audio):
                         path = await msg.download()
+                        # Convert MP4 to MP3 if it's from ApixFile and we need audio
+                        if not is_video and path and (path.endswith('.mp4') or path.endswith('.MP4')):
+                            mp3_path = await convert_mp4_to_mp3(path)
+                            if mp3_path:
+                                return Path(mp3_path)
                         return Path(path) if path else None
             except Exception as e:
                 LOGGER(__name__).error(f"Error downloading from ApixFile Telegram: {e}")
@@ -243,12 +292,22 @@ class YouTubeAPI:
                         msg = await app.get_messages(chat_username, int(message_id))
                         if msg and msg.document:
                             path = await msg.download()
+                            # Convert MP4 to MP3 if it's from ApixFile and we need audio
+                            if not is_video and path and (path.endswith('.mp4') or path.endswith('.MP4')):
+                                mp3_path = await convert_mp4_to_mp3(path)
+                                if mp3_path:
+                                    return Path(mp3_path)
                             return Path(path) if path else None
                 
                 # Handle direct Telegram file URLs
                 elif "telegram.org" in cdn_url:
                     # Download directly from Telegram file URL
                     dl_result = await self.download_file(cdn_url)
+                    # Convert MP4 to MP3 if it's from ApixFile and we need audio
+                    if not is_video and dl_result.file_path and (str(dl_result.file_path).endswith('.mp4') or str(dl_result.file_path).endswith('.MP4')):
+                        mp3_path = await convert_mp4_to_mp3(str(dl_result.file_path))
+                        if mp3_path:
+                            return Path(mp3_path)
                     return dl_result.file_path if dl_result.success else None
                     
             except Exception as e:
@@ -257,6 +316,11 @@ class YouTubeAPI:
         else:
             # Handle direct HTTP downloads
             dl_result = await self.download_file(cdn_url)
+            # Convert MP4 to MP3 if it's from ApixFile and we need audio
+            if not is_video and dl_result.file_path and (str(dl_result.file_path).endswith('.mp4') or str(dl_result.file_path).endswith('.MP4')):
+                mp3_path = await convert_mp4_to_mp3(str(dl_result.file_path))
+                if mp3_path:
+                    return Path(mp3_path)
             return dl_result.file_path if dl_result.success else None
             
         return None
@@ -442,6 +506,11 @@ class YouTubeAPI:
                     msg = await app.get_messages(chat_username, message_id)
                     if msg and (msg.document or msg.video or msg.audio):
                         path = await msg.download()
+                        # Convert MP4 to MP3 if it's from ApixFile and we need audio
+                        if not video and path and (path.endswith('.mp4') or path.endswith('.MP4')):
+                            mp3_path = await convert_mp4_to_mp3(path)
+                            if mp3_path:
+                                return mp3_path, True
                         return path, True
             except Exception as e:
                 LOGGER(__name__).error(f"Error downloading from ApixFile link: {e}")
