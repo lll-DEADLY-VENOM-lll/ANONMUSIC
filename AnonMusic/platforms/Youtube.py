@@ -68,13 +68,17 @@ class YouTubeAPI:
         cookie_dir = "cookies"
         try:
             if not os.path.exists(cookie_dir):
-                LOGGER(__name__).warning("Cookie directory '%s' does not exist.", cookie_dir)
+                os.makedirs(cookie_dir, exist_ok=True)
+                LOGGER(__name__).info("Created cookies directory")
                 return None
+            
             files = os.listdir(cookie_dir)
             cookies_files = [f for f in files if f.endswith(".txt")]
+            
             if not cookies_files:
                 LOGGER(__name__).warning("No cookie files found in '%s'.", cookie_dir)
                 return None
+                
             return os.path.join(cookie_dir, random.choice(cookies_files))
         except Exception as e:
             LOGGER(__name__).warning("Error accessing cookie directory: %s", e)
@@ -176,6 +180,62 @@ class YouTubeAPI:
             return f"Request failed for {url}: {repr(e)}"
         return f"Unexpected error for {url}: {repr(e)}"
 
+    async def parse_tg_link(self, tg_url: str):
+        """Parse Telegram link and get the message"""
+        try:
+            # Handle different Telegram URL formats
+            if "/c/" in tg_url:
+                # Channel format: https://t.me/c/chat_id/message_id
+                pattern = r"https:\/\/t\.me\/c\/(\d+)\/(\d+)"
+                match = re.match(pattern, tg_url)
+                if match:
+                    chat_id, message_id = match.groups()
+                    return await app.get_messages(int(chat_id), int(message_id))
+            else:
+                # Username format: https://t.me/username/message_id
+                pattern = r"https:\/\/t\.me\/([^\/]+)\/(\d+)"
+                match = re.match(pattern, tg_url)
+                if match:
+                    chat_username, message_id = match.groups()
+                    return await app.get_messages(chat_username, int(message_id))
+        except Exception as e:
+            LOGGER(__name__).error(f"Error parsing Telegram link {tg_url}: {e}")
+        return None
+
+    async def convert_mp4_to_mp3(self, mp4_path: str) -> Optional[str]:
+        """Convert MP4 file to MP3 format"""
+        try:
+            if not mp4_path or not os.path.exists(mp4_path):
+                return None
+                
+            mp3_path = mp4_path.rsplit('.', 1)[0] + '.mp3'
+            
+            # Use ffmpeg to convert
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg",
+                "-i", mp4_path,
+                "-vn",  # No video
+                "-acodec", "libmp3lame",
+                "-ab", "192k",  # Bitrate
+                "-ar", "44100",  # Sample rate
+                "-y",  # Overwrite output file
+                mp3_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            
+            stdout, stderr = await proc.communicate()
+            
+            if proc.returncode == 0 and os.path.exists(mp3_path):
+                return mp3_path
+            else:
+                LOGGER(__name__).error(f"FFmpeg conversion failed: {stderr.decode()}")
+                return None
+                
+        except Exception as e:
+            LOGGER(__name__).error(f"Error converting MP4 to MP3: {e}")
+            return None
+
     async def download_with_api(self, video_id: str, is_video: bool = False) -> Optional[Path]:
         if not API_URL or not API_KEY:
             LOGGER(__name__).warning("API_URL or API_KEY is not set")
@@ -189,66 +249,94 @@ class YouTubeAPI:
         
         # Make request to the API
         api_response = await self.make_request(api_url)
-        if not api_response:
-            LOGGER(__name__).error("No response from API")
+        if not api_response or not isinstance(api_response, dict):
+            LOGGER(__name__).error("No response from API or invalid format")
             return None
             
-        # Extract the download URL from the API response
+        # Extract the download URL and stream type from the API response
         cdn_url = api_response.get("cdnurl")
+        stream_type = api_response.get("stream_type", "audio")  # Default to audio if not specified
+        
         if not cdn_url:
             LOGGER(__name__).error("API response is missing cdnurl")
             return None
             
-        # Check if it's a Telegram URL (we need to handle differently)
-        if "t.me" in cdn_url or "telegram.org" in cdn_url:
-            try:
-                # Handle Telegram file downloads
-                if "t.me" in cdn_url:
-                    # Extract chat ID and message ID from Telegram URL
-                    match = re.match(r"https:\/\/t\.me\/([^\/]+)\/(\d+)", cdn_url)
-                    if match:
-                        chat_username, message_id = match.groups()
-                        msg = await app.get_messages(chat_username, int(message_id))
-                        if msg and msg.document:
-                            path = await msg.download()
-                            return Path(path) if path else None
-                
-                # Handle direct Telegram file URLs
-                elif "telegram.org" in cdn_url:
-                    # Download directly from Telegram file URL
-                    dl_result = await self.download_file(cdn_url)
-                    return dl_result.file_path if dl_result.success else None
+        # Handle different types of CDN URLs based on stream_type
+        try:
+            # For Telegram URLs (third type response)
+            if "t.me" in cdn_url:
+                # Download from Telegram
+                msg = await self.parse_tg_link(cdn_url)
+                if msg and msg.document:
+                    # Download the file
+                    temp_path = await msg.download()
                     
-            except Exception as e:
-                LOGGER(__name__).error(f"Error downloading from Telegram: {e}")
-                return None
-        else:
-            # Handle direct HTTP downloads
-            dl_result = await self.download_file(cdn_url)
-            return dl_result.file_path if dl_result.success else None
+                    # If stream_type is audio but file is video (MP4), convert to MP3
+                    if stream_type == "audio" and temp_path and temp_path.endswith('.mp4'):
+                        mp3_path = await self.convert_mp4_to_mp3(temp_path)
+                        if mp3_path:
+                            # Clean up the original MP4 file
+                            try:
+                                os.remove(temp_path)
+                            except:
+                                pass
+                            return Path(mp3_path)
+                        return Path(temp_path) if temp_path else None
+                    
+                    return Path(temp_path) if temp_path else None
+                    
+            # For Telegram file URLs (second type response)
+            elif "telegram.org" in cdn_url:
+                # Download directly from Telegram file URL
+                dl_result = await self.download_file(cdn_url)
+                temp_path = dl_result.file_path if dl_result.success else None
+                
+                # Convert if needed (audio stream type but MP4 file)
+                if stream_type == "audio" and temp_path and temp_path.suffix == '.mp4':
+                    mp3_path = await self.convert_mp4_to_mp3(str(temp_path))
+                    if mp3_path:
+                        try:
+                            os.remove(str(temp_path))
+                        except:
+                            pass
+                        return Path(mp3_path)
+                
+                return temp_path
+                
+            # For direct HTTP URLs (first type response)
+            else:
+                # Handle direct HTTP downloads
+                dl_result = await self.download_file(cdn_url)
+                return dl_result.file_path if dl_result.success else None
+                
+        except Exception as e:
+            LOGGER(__name__).error(f"Error processing download: {e}")
+            return None
             
         return None
 
-    async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> Optional[str]:
-        """Get direct download URL from API without downloading the file"""
+    async def get_direct_download_url(self, video_id: str, is_video: bool = False) -> tuple[Optional[str], Optional[str]]:
+        """Get direct download URL from API without downloading the file, returns (url, stream_type)"""
         if not API_URL or not API_KEY:
             LOGGER(__name__).warning("API_URL or API_KEY is not set")
-            return None
+            return None, None
         if not video_id:
             LOGGER(__name__).warning("Video ID is None")
-            return None
+            return None, None
             
-        # Build the API URL according to the new API structure
+        # Build the API URL
         api_url = f"{API_URL}/youtube?query={video_id}&video={'true' if is_video else 'false'}&api_key={API_KEY}"
         
         # Make request to the API
         api_response = await self.make_request(api_url)
-        if not api_response:
-            LOGGER(__name__).error("No response from API")
-            return None
+        if not api_response or not isinstance(api_response, dict):
+            LOGGER(__name__).error("No response from API or invalid format")
+            return None, None
             
-        # Return the direct download URL
-        return api_response.get("cdnurl")
+        # Return the direct download URL and stream type
+        cdn_url = api_response.get("cdnurl")
+        stream_type = api_response.get("stream_type", "audio")
+        return cdn_url, stream_type
 
     async def exists(self, link: str, videoid: Union[bool, str] = None) -> bool:
         if videoid:
@@ -317,7 +405,7 @@ class YouTubeAPI:
 
     async def video(self, link: str, videoid: Union[bool, str] = None) -> tuple[int, str]:
         # First try to get direct download URL from API
-        direct_url = await self.get_direct_download_url(link, True)
+        direct_url, stream_type = await self.get_direct_download_url(link, True)
         if direct_url:
             return 1, direct_url
             
@@ -485,20 +573,20 @@ class YouTubeAPI:
 
         if songvideo:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, True)
-            if direct_url:
+            direct_url, stream_type = await self.get_direct_download_url(link, True)
+            if direct_url and stream_type == "video":
                 return direct_url
             return await loop.run_in_executor(None, song_video_dl)
         elif songaudio:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, False)
-            if direct_url:
+            direct_url, stream_type = await self.get_direct_download_url(link, False)
+            if direct_url and stream_type == "audio":
                 return direct_url
             return await loop.run_in_executor(None, song_audio_dl)
         elif video:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, True)
-            if direct_url:
+            direct_url, stream_type = await self.get_direct_download_url(link, True)
+            if direct_url and stream_type == "video":
                 return direct_url, True
                 
             # Fallback to yt-dlp if API fails
@@ -524,8 +612,8 @@ class YouTubeAPI:
                     return "", direct
         else:
             # Try to get direct URL from API first
-            direct_url = await self.get_direct_download_url(link, False)
-            if direct_url:
+            direct_url, stream_type = await self.get_direct_download_url(link, False)
+            if direct_url and stream_type == "audio":
                 return direct_url, True
                 
             # Fallback to yt-dlp if API fails
