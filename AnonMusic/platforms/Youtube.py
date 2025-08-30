@@ -20,11 +20,11 @@ class YouTubeAPI:
         self.regex = r"(?:youtube\.com|youtu\.be)"
         self.status = "https://www.youtube.com/oembed?url="
         self.listbase = "https://youtube.com/playlist?list="
-        self.api_url = "http://tart-caterina-cutenovia-3b62c17a.koyeb.app/youtube"
-        self.api_live_url = "http://tart-caterina-cutenovia-3b62c17a.koyeb.app/youtube/live"
-        self.api_playlist_url = "http://tart-caterina-cutenovia-3b62c17a.koyeb.app/youtube/playlist"
+        self.api_url = "https://op.spotifytech.shop/youtube"
+        self.api_live_url = "https://op.spotifytech.shop/youtube/live"
+        self.api_playlist_url = "https://op.spotifytech.shop/youtube/playlist"
         self.api_key = "SANATANIxTECH"
-        self.stream_base = "http://tart-caterina-cutenovia-3b62c17a.koyeb.app/stream/"
+        self.stream_base = "https://op.spotifytech.shop/stream/"
         self.download_folder = "downloads"
         
         os.makedirs(self.download_folder, exist_ok=True)
