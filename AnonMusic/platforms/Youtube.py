@@ -5,7 +5,7 @@ import os
 import re
 import random
 from typing import Union
-from urllib.parse import unquote, quote
+from urllib.parse import unquote
 from pyrogram.types import Message
 from pyrogram.enums import MessageEntityType
 from youtubesearchpython.__future__ import VideosSearch
@@ -21,8 +21,6 @@ class YouTubeAPI:
         self.status = "https://www.youtube.com/oembed?url="
         self.listbase = "https://youtube.com/playlist?list="
         self.api_url = "https://op.spotifytech.shop/youtube"
-        self.api_live_url = "https://op.spotifytech.shop/youtube/live"
-        self.api_playlist_url = "https://op.spotifytech.shop/youtube/playlist"
         self.api_key = "SANATANIxTECH"
         self.stream_base = "https://op.spotifytech.shop/stream/"
         self.download_folder = "downloads"
@@ -94,7 +92,7 @@ class YouTubeAPI:
                 ydl.download([stream_url])
             return filepath
         
-        return await loop.run_in_executor(None, _dl)
+        return await loop.run_in_executor(None, _download)
 
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -121,24 +119,21 @@ class YouTubeAPI:
         info = await self._get_video_info(link.split("&")[0])
         return info["thumbnail"]
 
-    async def _get_stream_url(self, link: str, video: bool = False, is_live: bool = False):
-        # Choose the right API endpoint
-        api_endpoint = self.api_live_url if is_live else self.api_url
-        
+    async def _get_stream_url(self, link: str, video: bool = False):
         params = {
-            "query": quote(link),
+            "query": unquote(link),
             "video": str(video).lower(),
             "api_key": self.api_key
         }
         
         async with httpx.AsyncClient(timeout=60) as client:
             try:
-                response = await client.get(api_endpoint, params=params)
+                response = await client.get(self.api_url, params=params)
                 if response.status_code == 200:
                     data = response.json()
                     return data.get("stream_url", "")
-            except Exception as e:
-                print(f"Error getting stream URL: {e}")
+            except Exception:
+                pass
         return ""
 
     async def video(self, link: str, videoid: Union[bool, str] = None):
@@ -151,61 +146,36 @@ class YouTubeAPI:
             if cached:
                 return cached
         
-        # Check if it's a live stream first
-        is_live = await self._check_if_live(link)
-        stream_url = await self._get_stream_url(link, True, is_live)
+        stream_url = await self._get_stream_url(link, True)
         
         if stream_url and vidid:
             await self._save_stream(stream_url, vidid, True)
             
         return stream_url
 
-    async def _check_if_live(self, link: str):
-        """Check if the URL points to a live stream"""
-        try:
-            ydl_opts = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": True
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(link, download=False)
-                return info.get('is_live', False)
-        except:
-            return False
-
     async def playlist(self, link: str, limit: int, user_id: int, videoid: Union[bool, str] = None):
         if videoid:
             link = self.listbase + link
         
-        # Try our API first
-        api_url = f"{self.api_playlist_url}?query={quote(link)}&api_key={self.api_key}"
+        api_url = f"{self.api_url}?query={unquote(link)}&playlist=true&api_key={self.api_key}"
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(api_url)
                 if response.status_code == 200:
                     data = response.json()
-                    playlist_info = data.get("playlist_info", {})
-                    entries = data.get("entries", [])
-                    return [item["id"] for item in entries[:limit]]
-            except Exception as e:
-                print(f"API playlist error: {e}")
+                    return [item["id"] for item in data.get("entries", [])[:limit]]
+            except Exception:
+                pass
         
-        # Fallback to yt-dlp
         ydl_opts = {
             "extract_flat": True,
             "playlistend": limit,
-            "quiet": True,
-            "ignoreerrors": True
+            "quiet": True
         }
         
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(link, download=False)
-                return [entry["id"] for entry in info.get("entries", [])[:limit]]
-        except Exception as e:
-            print(f"YT-DLP playlist error: {e}")
-            return []
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(link, download=False)
+            return [entry["id"] for entry in info.get("entries", [])]
 
     async def track(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -271,15 +241,13 @@ class YouTubeAPI:
         elif songaudio:
             return await self._download_song_audio(link, format_id, title)
         elif video:
-            is_live = await self._check_if_live(link)
-            stream_url = await self._get_stream_url(link, True, is_live)
+            stream_url = await self._get_stream_url(link, True)
             vidid = extract_video_id(link)
             if vidid:
                 await self._save_stream(stream_url, vidid, True)
             return stream_url, None
         else:
-            is_live = await self._check_if_live(link)
-            stream_url = await self._get_stream_url(link, False, is_live)
+            stream_url = await self._get_stream_url(link, False)
             vidid = extract_video_id(link)
             if vidid:
                 await self._save_stream(stream_url, vidid, False)
@@ -326,16 +294,6 @@ class YouTubeAPI:
 def extract_video_id(url: str):
     patterns = [
         r"(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([^\?&]+)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
-
-def extract_playlist_id(url: str):
-    patterns = [
-        r"(?:youtube\.com/playlist\?list=|youtube\.com/watch\?.*list=)([^\?&]+)",
     ]
     for pattern in patterns:
         match = re.search(pattern, url)
