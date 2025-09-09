@@ -4,6 +4,10 @@ from os import getenv
 from dotenv import load_dotenv
 from pyrogram import filters
 
+import os
+
+YTDL_COOKIES = os.getenv("YTDL_COOKIES", "cookies.txt")
+
 # Load variables from .env file
 load_dotenv()
 
