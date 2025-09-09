@@ -45,12 +45,14 @@ async def shell_cmd(cmd):
 async def get_stream_url(query, video=False):
     apis = [
         {
-            "url": "https://tgapi.xbitcode.com",
-            "key": "xbit_AY2JXTDQPYPRW6FD66GSRV"
+            "url": "http://80.211.130.157:1470/youtube
+",
+            "key": "SANATANI_TECH"
         },
         {
-            "url": "https://tgapi.xbitcode.com",
-            "key": "xbit_AY2JXTDQPYPRW6FD66GSRV"
+            "url": "http://80.211.130.157:1470/youtube
+",
+            "key": "SANATANI_TECH"
         }
     ]
 
