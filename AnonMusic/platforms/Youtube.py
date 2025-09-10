@@ -9,9 +9,9 @@ from pyrogram.enums import MessageEntityType
 from concurrent.futures import ThreadPoolExecutor
 from youtubesearchpython.__future__ import VideosSearch, CustomSearch
 
-from AnonMusic import LOGGER
-from AnonMusic.utils.database import is_on_off
-from AnonMusic.utils.formatters import time_to_seconds
+from BIGFM import LOGGER
+from BIGFM.utils.database import is_on_off
+from BIGFM.utils.formatters import time_to_seconds
 
 def cookie_txt_file():
     try:
@@ -45,13 +45,11 @@ async def shell_cmd(cmd):
 async def get_stream_url(query, video=False):
     apis = [
         {
-            "url": "http://80.211.130.157:1470/youtube"
-",
+            "url": "http://80.211.130.157:1470/youtube",
             "key": "SANATANI_TECH"
         },
         {
-            "url": "http://80.211.130.157:1470/youtube"
-",
+            "url": "http://80.211.130.157:1470/youtube",
             "key": "SANATANI_TECH"
         }
     ]
