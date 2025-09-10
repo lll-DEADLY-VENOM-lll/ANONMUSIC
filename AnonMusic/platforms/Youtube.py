@@ -9,9 +9,9 @@ from pyrogram.enums import MessageEntityType
 from concurrent.futures import ThreadPoolExecutor
 from youtubesearchpython.__future__ import VideosSearch, CustomSearch
 
-from ANONMUSIC import LOGGER
-from ANONMUSIC.utils.database import is_on_off
-from ANONMUSIC.utils.formatters import time_to_seconds
+from AnonMusic import LOGGER
+from AnonMusic.utils.database import is_on_off
+from AnonMusic.utils.formatters import time_to_seconds
 
 def cookie_txt_file():
     try:
