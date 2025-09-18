@@ -10,9 +10,8 @@ from pytgcalls.exceptions import (
     NoActiveGroupCall,
 )
 from ntgcalls import TelegramServerError
-from pytgcalls.types import Update
-#from pytgcalls.types import Update, StreamEnded
-#from pytgcalls import filters as fl
+from pytgcalls.types import Update, StreamEnded
+from pytgcalls import filters as fl
 from pytgcalls.types import AudioQuality, VideoQuality
 from pytgcalls.types import MediaStream,ChatUpdate
 
@@ -37,24 +36,7 @@ from AnonMusic.utils.formatters import check_duration, seconds_to_min, speed_con
 from AnonMusic.utils.inline.play import stream_markup
 from AnonMusic.utils.thumbnails import get_thumb
 from strings import get_string
-
-#=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×[ NO NEED COOKIES ]=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×
-
-def cookie_txt_file():
-    try:
-        folder_path = f"{os.getcwd()}/cookies"
-        filename = f"{os.getcwd()}/cookies/logs.csv"
-        txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
-        if not txt_files:
-            raise FileNotFoundError("No .txt files found in the specified folder.")
-        cookie_txt_file = random.choice(txt_files)
-        with open(filename, 'a') as file:
-            file.write(f'Choosen File : {cookie_txt_file}\n')
-        return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
-    except:
-        pass
-        
-#=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×=×
+from AnonMusic.platforms.Youtube import cookie_txt_file
 
 autoend = {}
 counter = {}
@@ -316,7 +298,6 @@ class Call(PyTgCalls):
                 link,
                 audio_parameters=AudioQuality.HIGH,video_parameters=VideoQuality.SD_480p
                 )
-
         else:
             stream = (
                 MediaStream(
@@ -333,7 +314,6 @@ class Call(PyTgCalls):
                 chat_id,
                 stream
             )
-
         except NoActiveGroupCall:
             raise AssistantErr(_["call_8"])
         except AlreadyJoinedError:
@@ -583,7 +563,7 @@ class Call(PyTgCalls):
         return str(round(sum(pings) / len(pings), 3))
 
     async def start(self):
-        LOGGER(__name__).info("🔊 Starting PyTgCalls Client")
+        LOGGER(__name__).info("⚙️ Starting PyTgCalls Client")
         if config.STRING1:
             await self.one.start()
         if config.STRING2:
