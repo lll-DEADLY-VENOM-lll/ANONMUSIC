@@ -1,15 +1,10 @@
 import asyncio
-import os
-import re
-import requests
-import json
-import glob
-import random
 
+import os
+
+import re
+import json
 from typing import Union
-from urllib.parse import urlparse
-from pytgcalls.types.input_stream import InputStream
-from pytgcalls.types.input_stream import InputAudioStream
 
 import yt_dlp
 from pyrogram.enums import MessageEntityType
@@ -18,7 +13,13 @@ from youtubesearchpython.__future__ import VideosSearch
 
 from AnonMusic.utils.database import is_on_off
 from AnonMusic.utils.formatters import time_to_seconds
-from AnonMusic import config
+
+
+
+import os
+import glob
+import random
+import logging
 
 def cookie_txt_file():
     folder_path = f"{os.getcwd()}/cookies"
@@ -30,41 +31,6 @@ def cookie_txt_file():
     with open(filename, 'a') as file:
         file.write(f'Choosen File : {cookie_txt_file}\n')
     return f"""cookies/{str(cookie_txt_file).split("/")[-1]}"""
-
-
-
-async def download_song(link):
-    from TaitanXMusic import app
-    x = re.compile(
-        r'(?:https?://)?(?:www\.)?(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})'
-    )
-    video_id = x.search(link)
-    if video_id:
-        vidid = video_id.group(1)
-    else:
-        vidid = link
-    
-    xyz = os.path.join("downloads", f"{vidid}.mp3")
-    if os.path.exists(xyz):
-        return xyz
-        
-    api_url = f"{config.API_URL}/song/{vidid}?api={config.API_KEY}"
-    try:
-        download_url = requests.get(api_url).json()["link"]
-    except:
-        return None
-        
-    parsed = urlparse(download_url)
-    path = parsed.path.strip('/')
-    parts = path.split('/')
-    cname, msgid = str(parts[0]), int(parts[1])
-    msg = await app.get_messages(cname, msgid)
-    await msg.download(file_name=xyz)
-    
-    while not os.path.exists(xyz):
-        await asyncio.sleep(0.5)
-    
-    return xyz
 
 
 
@@ -215,7 +181,7 @@ class YouTubeAPI:
             "--cookies",cookie_txt_file(),
             "-g",
             "-f",
-            "best[height<=?720][width<=?1280]",
+            "18/best",
             f"{link}",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -425,7 +391,7 @@ class YouTubeAPI:
                     "--cookies",cookie_txt_file(),
                     "-g",
                     "-f",
-                    "best[height<=?720][width<=?1280]",
+                    "18/best",
                     f"{link}",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -447,9 +413,5 @@ class YouTubeAPI:
                    downloaded_file = await loop.run_in_executor(None, video_dl)
         else:
             direct = True
-            try:
-                downloaded_file = await download_song(link)
-            except Exception:
-                downloaded_file = await loop.run_in_executor(None, audio_dl)
-            
+            downloaded_file = await loop.run_in_executor(None, audio_dl)
         return downloaded_file, direct
