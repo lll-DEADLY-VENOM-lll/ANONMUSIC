@@ -10,7 +10,8 @@ from pytgcalls.exceptions import (
     NoActiveGroupCall,
 )
 from ntgcalls import TelegramServerError
-from pytgcalls.types import Update, StreamEnded
+from pytgcalls.types import Update
+#from pytgcalls.types import Update, StreamEnded
 from pytgcalls import filters as fl
 from pytgcalls.types import AudioQuality, VideoQuality
 from pytgcalls.types import MediaStream,ChatUpdate
