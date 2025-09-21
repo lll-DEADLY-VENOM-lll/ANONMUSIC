@@ -1,5 +1,6 @@
 import asyncio, httpx, os, re, yt_dlp
-
+import re
+import httpx
 from typing import Union
 from pyrogram.types import Message
 from pyrogram.enums import MessageEntityType
@@ -28,24 +29,35 @@ async def shell_cmd(cmd):
     return out.decode("utf-8")
 
 
-async def get_stream_url(query, video=False):
-    
+def extract_video_id(query: str) -> str:
+    """
+    Extract YouTube video ID from a URL or return the query itself if it's already an ID.
+    """
+    patterns = [
+        r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",  # full URL or short URL
+        r"([0-9A-Za-z_-]{11})"              # just the ID
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, query)
+        if match:
+            return match.group(1)
+    return query  # fallback, assume query is the ID
+
+async def get_stream_url(query: str) -> str:
+    video_id = extract_video_id(query)
     api_base = "https://ytmp3.taitanapi.workers.dev"
     api_key = "TaitanXApi"
-    endpoint = "/video" if video else "/audio"
-    api_url = f"{api_base}{endpoint}"
-    
+
+    # Construct the full URL with API key in it
+    api_url = f"{api_base}/song/{video_id}?api={api_key}"
+
     async with httpx.AsyncClient(timeout=120) as client:
-        params = {"url": query, "api_key": api_key}
         try:
-            response = await client.get(api_url, params=params)
+            response = await client.get(api_url)
             if response.status_code != 200:
                 return ""
-            
             data = response.json()
-            if data.get("status") and data.get("result"):
-                return data["result"]["url"]
-            return ""
+            return data.get("link", "")
         except Exception as e:
             print(f"Error calling YouTube API: {e}")
             return ""
@@ -366,3 +378,4 @@ class YouTubeAPI:
             downloaded_file = await loop.run_in_executor(None, audio_dl)
             direct = None
         return downloaded_file, direct
+        
