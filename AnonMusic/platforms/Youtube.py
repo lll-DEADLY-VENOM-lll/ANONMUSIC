@@ -30,8 +30,8 @@ async def shell_cmd(cmd):
 
 async def get_stream_url(query, video=False):
     
-    api_base = "http://80.211.133.129:7000"
-    api_key = "SANATANI_TECH"
+    api_base = "https://ytmp3.taitanapi.workers.dev"
+    api_key = "TaitanXApi"
     endpoint = "/video" if video else "/audio"
     api_url = f"{api_base}{endpoint}"
     
