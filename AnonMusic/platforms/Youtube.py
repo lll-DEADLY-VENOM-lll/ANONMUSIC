@@ -30,9 +30,9 @@ async def shell_cmd(cmd):
 
 async def get_stream_url(query, video=False):
     
-    api_base = "https://ytmp3.taitanapi.workers.dev"
+    api_base = "http://94.177.164.89:5000"
     api_key = "TaitanXApi"
-    endpoint = "/video" if video else "/audio"
+    endpoint = "/audio"
     api_url = f"{api_base}{endpoint}"
     
     async with httpx.AsyncClient(timeout=120) as client:
