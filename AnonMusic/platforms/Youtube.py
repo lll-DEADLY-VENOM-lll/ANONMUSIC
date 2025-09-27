@@ -5,8 +5,8 @@ from pyrogram.types import Message
 from pyrogram.enums import MessageEntityType
 from youtubesearchpython.__future__ import VideosSearch
 
-from AnonMusic.utils.database import is_on_off
-from AnonMusic.utils.formatters import time_to_seconds
+from PURVIMUSIC.utils.database import is_on_off
+from PURVIMUSIC.utils.formatters import time_to_seconds
 
 def time_to_seconds(time):
     stringt = str(time)
@@ -30,9 +30,9 @@ async def shell_cmd(cmd):
 
 async def get_stream_url(query, video=False):
     
-    api_base = "http://94.177.164.89:5000"
-    api_key = "TaitanXApi"
-    endpoint = "/audio"
+    api_base = "http://80.211.133.129:7000"
+    api_key = "SANATANI_TECH"
+    endpoint = "/video" if video else "/audio"
     api_url = f"{api_base}{endpoint}"
     
     async with httpx.AsyncClient(timeout=120) as client:
@@ -366,4 +366,3 @@ class YouTubeAPI:
             downloaded_file = await loop.run_in_executor(None, audio_dl)
             direct = None
         return downloaded_file, direct
-                    
